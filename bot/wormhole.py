@@ -10,6 +10,7 @@ from discord.ext import commands
 from datetime import datetime
 
 from bot.core.context import Context
+from bot.util.cache import cache
 
 startup_extensions = (
     'bot.cogs.link',
@@ -45,6 +46,14 @@ class Wormhole(commands.Bot):
         self.boot = datetime.now()
         self.on_load = []
 
+    @cache(maxsize=1024)
+    async def get_channel_webhook(self, channel: discord.TextChannel):
+        webhooks = await channel.webhooks()
+        for webhook in webhooks:
+            if webhook.name == 'Wormhole Sender':
+                return webhook
+        return await channel.create_webhook(name='Wormhole Sender')
+
     async def setup_hook(self) -> None:
         for extension in startup_extensions:
             try:
@@ -65,6 +74,7 @@ class Wormhole(commands.Bot):
 
     async def run_once_when_ready(self):
         await self.wait_until_ready()
+        await self.tree.sync()
         print('Ready!')
         for function in self.on_load:
             await function()

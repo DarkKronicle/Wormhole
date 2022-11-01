@@ -110,12 +110,7 @@ class Webhooker:
     async def setup_webhook(self):
         if self.webhook is not None:
             return
-        webhooks = await self.channel.webhooks()
-        for webhook in webhooks:
-            if webhook.name == 'Wormhole Sender':
-                self.webhook = webhook
-                return
-        self.webhook = await self.channel.create_webhook(name='Wormhole Sender')
+        self.webhook = await self.bot.get_channel_webhook(self.channel)
 
     @ensure_webhook
     async def edit(self, message_id, thread=discord.utils.MISSING, **kwargs):
