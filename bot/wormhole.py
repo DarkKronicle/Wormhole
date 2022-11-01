@@ -14,6 +14,7 @@ from bot.util.cache import cache
 
 startup_extensions = (
     'bot.cogs.link',
+    'bot.cogs.lookup',
 )
 
 
@@ -45,6 +46,9 @@ class Wormhole(commands.Bot):
         )
         self.boot = datetime.now()
         self.on_load = []
+
+    def get_link_cog(self):
+        return self.get_cog("Link")
 
     @cache(maxsize=1024)
     async def get_channel_webhook(self, channel: discord.TextChannel):
