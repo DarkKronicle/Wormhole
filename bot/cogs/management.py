@@ -1,4 +1,5 @@
 import secrets
+from collections import defaultdict
 
 import discord
 from discord.ext import commands
@@ -121,14 +122,17 @@ class Management(commands.Cog):
         embed = Embed()
         embed.set_title(f'{channel} Link Information')
         guild = self.bot.get_guild(link_data['owner_guild'])
-        guilds = []
+        channel_guilds = defaultdict(list)
         for channel in link_channels:
-            formatted = '`' + str(self.bot.get_guild(channel['guild_id'])) + '`'
-            if formatted not in guilds:
-                guilds.append(formatted)
+            guild = self.bot.get_guild(channel['guild_id'])
+            channel_guilds[channel['guild_id']].append(f"{guild.get_channel(channel['channel_id'])} (`{channel['channel_id']}`)")
+        formatted = []
+        for guild, channels in channel_guilds.items():
+            formatted.append("**" + str(self.bot.get_guild(guild)) + "**: " + ', '.join(channels))
+        lines = '\n'.join(formatted)
         embed.set_description(
-            f"Owner Guild: `{guild}`\nLink ID: `{channel_data['link_id']}`\nChannels Linked: `{len(link_channels)}`\nGuilds: {', '.join(guilds)}"
-            )
+            f"Owner Guild: `{guild}`\nLink ID: `{channel_data['link_id']}`\nChannels Linked: `{len(link_channels)}`\n\n```\nGuilds``` {lines}"
+        )
         await ctx.send(embed=embed, ephemeral=True)
 
     @commands.hybrid_command("invitecode")
