@@ -307,6 +307,8 @@ class Link(commands.Cog):
             await con.execute("INSERT INTO channels (link_id, guild_id, channel_id) VALUES ($1, $2, $3);", link_id, channel.guild.id, channel.id)
         self.get_channel_data.invalidate(channel.id)
         self.get_link_channels.invalidate(link_id)
+        self.get_link_data.invalidate(link_id)
+        self.bot.get_channel_webhook.invalidate(channel)
         await ctx.send("Entanglement complete!")
 
     @commands.hybrid_command("createlink")
