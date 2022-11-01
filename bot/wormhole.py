@@ -15,6 +15,7 @@ from bot.util.cache import cache
 startup_extensions = (
     'bot.cogs.link',
     'bot.cogs.lookup',
+    'bot.cogs.management',
 )
 
 
