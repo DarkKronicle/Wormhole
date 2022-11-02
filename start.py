@@ -29,7 +29,30 @@ logging.getLogger('discord.http').setLevel(logging.WARNING)
 logging.getLogger('discord.http').addFilter(RemoveNoise())
 
 
-async def create_tables(connection):
+async def create_tables(connection, pool):
+    async with db.MaybeAcquire(connection=connection, pool=pool) as con:
+        await con.execute("""CREATE OR REPLACE FUNCTION pseudo_encrypt(VALUE bigint) returns bigint AS $$
+            DECLARE
+            l1 bigint;
+            l2 bigint;
+            r1 bigint;
+            r2 bigint;
+            i int:=0;
+            BEGIN
+                l1:= (VALUE >> 32) & 4294967295::bigint;
+                r1:= VALUE & 4294967295;
+                WHILE i < 3 LOOP
+                    l2 := r1;
+                    r2 := l1 # ((((1366.0 * r1 + 150889) % 714025) / 714025.0) * 32767*32767)::int;
+                    l1 := l2;
+                    r1 := r2;
+                    i := i + 1;
+                END LOOP;
+            RETURN ((l1::bigint << 32) + r1);
+            END;
+            $$ LANGUAGE plpgsql strict immutable;
+        """)
+
     for table in db.Table.all_tables():
         try:
             await table.create(connection=connection)
@@ -53,7 +76,7 @@ async def database(pool):
     logging.info('Preparing to create {0} tables.'.format(len(db.Table.all_tables())))
 
     async with pool.acquire() as con:
-        await create_tables(con)
+        await create_tables(con, pool)
 
 
 async def run_bot():

@@ -34,6 +34,7 @@ class Management(commands.Cog):
         if invite_id not in self.invites:
             return await ctx.send("Invalid invite code!", ephemeral=True)
         link_id = self.invites[invite_id]
+        del self.invites[invite_id]
         data = await self.bot.get_link_cog().get_link_data(link_id)
         if data is None:
             return await ctx.send("That link has disappeared!", ephemeral=True)
@@ -189,6 +190,40 @@ class Management(commands.Cog):
         channel_data = await self.bot.get_link_cog().get_channel_data(channel.id)
         if channel_data is None:
             return await ctx.send("That channel is already not linked!", ephemeral=True)
+        async with db.MaybeAcquire(pool=self.bot.pool) as con:
+            data = await con.fetchrow("DELETE FROM channels WHERE channel_id = $1 AND guild_id = $2 RETURNING *;", channel.id, channel.guild.id)
+        await ctx.send("Channel has been untangled!")
+        link_id = data['link_id']
+        self.bot.get_link_cog().get_channel_data.invalidate(self.bot.get_link_cog(), channel.id)
+        self.bot.get_link_cog().get_link_channels.invalidate(self.bot.get_link_cog(), link_id)
+        self.bot.get_link_cog().get_link_data.invalidate(self.bot.get_link_cog(), link_id)
+        self.bot.get_link_cog().bot.get_channel_webhook.invalidate(self.bot.get_link_cog(), channel)
+
+    @commands.hybrid_command("unlink")
+    async def unlink(self, ctx: Context, channel_id: str):
+        """Unlinks a channel
+
+        :param channel: The channel ID to unlink
+        """
+        try:
+            channel_id = int(channel_id)
+        except:
+            return await ctx.send("Invalid ID! (not an int)", ephemeral=True)
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            return await ctx.send("Invalid channel! (not an int)", ephemeral=True)
+        if ctx.guild is None:
+            return await ctx.send("You have to be in a guild!", ephemeral=True)
+        if isinstance(channel, discord.Thread):
+            return await ctx.send("It has to be a full text channel!", ephemeral=True)
+        if not ctx.author.guild_permissions.manage_guild:
+            return await ctx.send("You do not have permission to unlink!", ephemeral=True)
+        channel_data = await self.bot.get_link_cog().get_channel_data(channel.id)
+        if channel_data is None:
+            return await ctx.send("That channel is already not linked!", ephemeral=True)
+        link_data = await self.bot.get_link_cog().get_link_data(channel_data['link_id'])
+        if link_data['owner_guild'] != ctx.guild.id:
+            return await ctx.send("You aren't the owner of the link!")
         async with db.MaybeAcquire(pool=self.bot.pool) as con:
             data = await con.fetchrow("DELETE FROM channels WHERE channel_id = $1 AND guild_id = $2 RETURNING *;", channel.id, channel.guild.id)
         await ctx.send("Channel has been untangled!")

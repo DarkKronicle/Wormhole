@@ -31,7 +31,7 @@ class Banned(db.Table, table_name="banned"):
     def create_table(cls, overwrite=False):
         statement = super().create_table(overwrite)
         sql = 'ALTER TABLE banned DROP CONSTRAINT IF EXISTS unique_message;' \
-              'ALTER TABLE messages ADD CONSTRAINT unique_message UNIQUE(guild_id, user_id);'
+              'ALTER TABLE banned ADD CONSTRAINT unique_message UNIQUE(guild_id, user_id);'
         return statement + '\n' + sql
 
 
@@ -75,6 +75,43 @@ class Link(commands.Cog):
     async def get_channel_data(self, channel_id):
         async with db.MaybeAcquire(pool=self.bot.pool) as con:
             return await con.fetchrow('SELECT * FROM channels WHERE channel_id = $1;', channel_id)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel):
+        if not isinstance(channel, discord.TextChannel):
+            return
+        channel_data = await self.get_channel_data(channel.id)
+        if not channel_data:
+            return
+        async with db.MaybeAcquire(pool=self.bot.pool) as con:
+            # Remove from database
+            row = await con.fetchrow("DELETE FROM channels WHERE channel_id = $1 RETURNING *;", channel.id)
+        self.get_channel_data.invalidate(self, channel.id)
+        self.get_link_channels.invalidate(self, row['link_id'])
+        self.get_link_data.invalidate(self, row['link_id'])
+        self.bot.get_channel_webhook.invalidate(self, channel)
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild):
+        async with db.MaybeAcquire(pool=self.bot.pool) as con:
+            # Remove from database
+            rows = await con.fetch("SELECT * FROM links WHERE owner_guild = $1;", guild.id)
+            for r in rows:
+                channels = await con.fetch("SELECT * FROM channels WHERE link_id = $1;", r['link_id'])
+                found = None
+                for c in channels:
+                    if c['guild_id'] != guild.id:
+                        found = c['guild_id']
+                        break
+                if found:
+                    # Migrate to new owner
+                    await con.execute("UPDATE links SET owner_guild = $1 WHERE owner_guild = $2;", found, guild.id)
+                    await con.execute("DELETE * FROM channels WHERE link_id = $1 AND guild_id = $2;", r['link_id'], guild.id)
+                else:
+                    await con.execute("DELETE * FROM channels WHERE link_id = $1;", r['link_id'])
+                    await con.execute("DELETE * FROM links WHERE id = $1;", r['link_id'])
+                self.get_link_channels.invalidate(self, r['link_id'])
+                self.get_link_data.invalidate(self, r['link_id'])
 
     @commands.Cog.listener()
     async def on_typing(self, typing_channel: discord.TextChannel, member: discord.Member, when):
