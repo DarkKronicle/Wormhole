@@ -16,6 +16,7 @@ startup_extensions = (
     'bot.cogs.link',
     'bot.cogs.lookup',
     'bot.cogs.management',
+    'bot.cogs.owner',
 )
 
 
@@ -37,7 +38,7 @@ class Wormhole(commands.Bot):
             typing=True
         )
         super().__init__(
-            command_prefix='&' if not self.debug else '$',
+            command_prefix='^' if not self.debug else '$',
             intents=intents,
             case_insensitive=True,
             owner_id=523605852557672449,
