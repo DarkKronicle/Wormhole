@@ -199,7 +199,7 @@ class Management(commands.Cog):
         self.bot.get_link_cog().get_link_data.invalidate(self.bot.get_link_cog(), link_id)
         self.bot.get_link_cog().bot.get_channel_webhook.invalidate(self.bot.get_link_cog(), channel)
 
-    @commands.hybrid_command("unlink")
+    @commands.hybrid_command("forceunlink")
     async def unlink(self, ctx: Context, channel_id: str):
         """Unlinks a channel
 
@@ -234,7 +234,7 @@ class Management(commands.Cog):
         self.bot.get_link_cog().bot.get_channel_webhook.invalidate(self.bot.get_link_cog(), channel)
 
     @commands.hybrid_command("linkunban")
-    async def link_ban(self, ctx: Context, user: discord.User):
+    async def link_unban(self, ctx: Context, user: discord.User):
         """Unbans a user from using any links tied to this server
 
         :param user: The user to unban
