@@ -39,6 +39,7 @@ class Channels(db.Table, table_name="channels"):
     link_id = db.Column(db.ForeignKey(table="links", column="id", sql_type=db.Integer(big=True)))
     guild_id = db.Column(db.Integer(big=True))
     channel_id = db.Column(db.Integer(big=True), unique=True)
+    invite = db.Column(db.Boolean(), default="false")
 
 
 class OriginalMessages(db.Table, table_name="original_messages"):
