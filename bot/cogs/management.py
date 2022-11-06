@@ -200,7 +200,7 @@ class Management(commands.Cog):
         self.bot.get_link_cog().bot.get_channel_webhook.invalidate(self.bot.get_link_cog(), channel)
 
     @commands.hybrid_command("forceunlink")
-    async def unlink(self, ctx: Context, channel_id: str):
+    async def forceunlink(self, ctx: Context, channel_id: str):
         """Unlinks a channel
 
         :param channel: The channel ID to unlink
