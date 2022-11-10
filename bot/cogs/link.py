@@ -179,6 +179,7 @@ class Link(commands.Cog):
             all_messages = await con.fetch("SELECT * FROM synced_messages WHERE original_id = $1;", message_data["message_id"])
             if not original:
                 all_messages.append(message_data)
+        print(all_messages)
         for m in all_messages:
             channel_id = m['channel_id']
             channel = self.bot.get_channel(channel_id)
