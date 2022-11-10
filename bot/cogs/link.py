@@ -305,7 +305,7 @@ class Link(commands.Cog):
                 if jump_url is None and original is not None:
                     jump_url = f'https://discord.com/channels/{original["guild_id"]}/{original["channel_id"]}/{original["message_id"]}'
                 embed.set_description(f"**[Reply To: ]({jump_url}) **{content}")
-                if mention_reply:
+                if mention_reply and original['channel_id'] == channel_id:
                     mention = ' <@{0}>'.format(original['author_id'])
                     self.bot.loop.create_task(self.send_message_and_db(webhooker, message, embed, append=mention))
                 else:

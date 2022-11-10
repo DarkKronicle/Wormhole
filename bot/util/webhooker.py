@@ -97,7 +97,7 @@ class BasicMessage:
 
     @classmethod
     def from_message(cls, message: discord.Message):
-        return cls(message.author, message.attachments, message.embeds, message.content)
+        return cls(message.author, message.attachments, message.embeds, message.clean_content)
 
 
 class Webhooker:
