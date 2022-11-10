@@ -1,9 +1,11 @@
 import logging
 
 import discord
+from discord import utils
 from discord.ext import commands
 
 from bot.core.embed import Embed
+from bot.util.clean_content import clean_content
 from bot.util.webhooker import Webhooker, BasicMessage
 from bot.wormhole import Wormhole
 from bot.util import database as db, cache
@@ -168,6 +170,10 @@ class Link(commands.Cog):
         channel_data = await self.get_channel_data(payload.channel_id)
         if channel_data is None:
             return
+        message = utils.get(self.bot.cached_messages, id=payload.message_id)
+        if not message:
+            message = discord.PartialMessage(channel=self.bot.get_partial_messageable(id=payload.channel_id, guild_id=payload.guild_id), id=payload.message_id)
+            await message.fetch()
         async with db.MaybeAcquire(pool=self.bot.pool) as con:
             message_data = await con.fetchrow("SELECT * FROM original_messages WHERE message_id = $1;", payload.message_id)
             if not message_data:
@@ -184,7 +190,7 @@ class Link(commands.Cog):
                 continue
             webhooker = Webhooker(self.bot, channel)
             try:
-                await webhooker.edit(m['message_id'], content=payload.data['content'])
+                await webhooker.edit(m['message_id'], content=clean_content(message, payload.data['content']))
             except Exception as e:
                 logging.warning(e)
 

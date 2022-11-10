@@ -7,6 +7,8 @@ from collections import defaultdict
 
 from typing import Optional, TYPE_CHECKING
 
+from bot.util.clean_content import clean_content
+
 
 def build_dict(messages: list[discord.Message], *, loose=False, depth=-1) -> dict[int, list[discord.Message]]:
     pairs = defaultdict(list)
@@ -97,7 +99,7 @@ class BasicMessage:
 
     @classmethod
     def from_message(cls, message: discord.Message):
-        return cls(message.author, message.attachments, message.embeds, message.clean_content)
+        return cls(message.author, message.attachments, message.embeds, clean_content(message))
 
 
 class Webhooker:
