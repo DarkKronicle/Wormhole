@@ -270,6 +270,8 @@ class Link(commands.Cog):
                 )
             if reply.webhook_id is not None:
                 mentions = message.mentions.copy()
+                print(mentions)
+                print(message.raw_mentions)
                 for m in set(message.raw_mentions):
                     remove = None
                     for mention in mentions:
