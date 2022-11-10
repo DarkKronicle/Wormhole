@@ -161,6 +161,55 @@ class Link(commands.Cog):
         return bool(row)
 
     @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if payload.guild_id is None:
+            return
+        channel_data = await self.get_channel_data(payload.channel_id)
+        if channel_data is None:
+            return
+        async with db.MaybeAcquire(pool=self.bot.pool) as con:
+            original = True
+            message_data = await con.fetchrow("SELECT * FROM original_messages WHERE message_id = $1;", payload.message_id)
+            if not message_data:
+                original = False
+                message_data = await con.fetchrow("SELECT * FROM original_messages WHERE message_id = (SELECT original_id FROM synced_messages WHERE message_id = $1);", payload.message_id)
+            if not message_data:
+                # Doesn't exist anywhere
+                return
+            all_messages = await con.fetch("SELECT * FROM synced_messages WHERE original_id = $1;", message_data["message_id"])
+            if not original:
+                all_messages.append(message_data)
+        for m in all_messages:
+            channel_id = m['channel_id']
+            channel = self.bot.get_channel(channel_id)
+            if not channel:
+                channel = await self.bot.fetch_channel(channel_id)
+            if not channel:
+                logging.warning("Couldn't find channel " + channel_id)
+                continue
+            if channel_id != payload.channel_id:
+                message = utils.get(self.bot.cached_messages, id=m['message_id'])
+                if not message:
+                    message = discord.PartialMessage(
+                        channel=self.bot.get_partial_messageable(id=payload.channel_id, guild_id=payload.guild_id), id=payload.message_id
+                    )
+                    await message.fetch()
+                await message.add_reaction(payload.emoji)
+
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
+        pass
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_clear(self, payload: discord.RawReactionClearEvent):
+        pass
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_clear_emoji(self, payload: discord.RawReactionClearEmojiEvent):
+        pass
+
+    @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
         if payload.guild_id is None:
             return
@@ -300,7 +349,7 @@ class Link(commands.Cog):
             if reply is not None:
                 embed = Embed()
                 embed.set_author(name=reply.author.display_name, icon_url=reply.author.display_avatar.url)
-                content = reply.content
+                content = clean_content(reply, reply.content)
                 if len(content) > 50:
                     content = content[:50]
                 jump_url = None
