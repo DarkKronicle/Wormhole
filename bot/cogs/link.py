@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import discord
@@ -63,6 +64,8 @@ class Link(commands.Cog):
     def __init__(self, bot):
         self.bot: Wormhole = bot
         self.invites = cache.ExpiringDict(seconds=60 * 15)
+        self.locked_clears = []
+        self.locked_emoji_clears = []
 
     @cache.cache(maxsize=512)
     async def get_link_channels(self, link_id) -> list[dict]:
@@ -181,7 +184,6 @@ class Link(commands.Cog):
             all_messages = await con.fetch("SELECT * FROM synced_messages WHERE original_id = $1;", message_data["message_id"])
             if not original:
                 all_messages.append(message_data)
-        print(all_messages)
         for m in all_messages:
             channel_id = m['channel_id']
             channel = self.bot.get_channel(channel_id)
@@ -194,23 +196,149 @@ class Link(commands.Cog):
                 message = utils.get(self.bot.cached_messages, id=m['message_id'])
                 if not message:
                     message = discord.PartialMessage(
-                        channel=self.bot.get_partial_messageable(id=payload.channel_id, guild_id=payload.guild_id), id=payload.message_id
+                        channel=channel, id=m['message_id']
                     )
                     await message.fetch()
-                await message.add_reaction(payload.emoji)
-
+                try:
+                    await message.add_reaction(payload.emoji)
+                except:
+                    pass
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
-        pass
+        if payload.guild_id is None:
+            return
+        if payload.user_id == self.bot.user.id:
+            return
+        channel_data = await self.get_channel_data(payload.channel_id)
+        if channel_data is None:
+            return
+        async with db.MaybeAcquire(pool=self.bot.pool) as con:
+            original = True
+            message_data = await con.fetchrow("SELECT * FROM original_messages WHERE message_id = $1;", payload.message_id)
+            if not message_data:
+                original = False
+                message_data = await con.fetchrow(
+                    "SELECT * FROM original_messages WHERE message_id = (SELECT original_id FROM synced_messages WHERE message_id = $1);",
+                    payload.message_id
+                    )
+            if not message_data:
+                # Doesn't exist anywhere
+                return
+            all_messages = await con.fetch("SELECT * FROM synced_messages WHERE original_id = $1;", message_data["message_id"])
+            if not original:
+                all_messages.append(message_data)
+        for m in all_messages:
+            channel_id = m['channel_id']
+            channel = self.bot.get_channel(channel_id)
+            if not channel:
+                channel = await self.bot.fetch_channel(channel_id)
+            if not channel:
+                logging.warning("Couldn't find channel " + channel_id)
+                continue
+            if channel_id != payload.channel_id:
+                message = utils.get(self.bot.cached_messages, id=m['message_id'])
+                if not message:
+                    message = discord.PartialMessage(
+                        channel=channel, id=m['message_id']
+                    )
+                    await message.fetch()
+                try:
+                    await message.remove_reaction(payload.emoji, self.bot.user)
+                except:
+                    pass
 
     @commands.Cog.listener()
     async def on_raw_reaction_clear(self, payload: discord.RawReactionClearEvent):
-        pass
+        if payload.message_id in self.locked_clears:
+            return
+        if payload.guild_id is None:
+            return
+        channel_data = await self.get_channel_data(payload.channel_id)
+        if channel_data is None:
+            return
+        async with db.MaybeAcquire(pool=self.bot.pool) as con:
+            original = True
+            message_data = await con.fetchrow("SELECT * FROM original_messages WHERE message_id = $1;", payload.message_id)
+            if not message_data:
+                original = False
+                message_data = await con.fetchrow("SELECT * FROM original_messages WHERE message_id = (SELECT original_id FROM synced_messages WHERE message_id = $1);", payload.message_id)
+            if not message_data:
+                # Doesn't exist anywhere
+                return
+            all_messages = await con.fetch("SELECT * FROM synced_messages WHERE original_id = $1;", message_data["message_id"])
+            if not original:
+                all_messages.append(message_data)
+        if payload.message_id in self.locked_clears:
+            return
+        self.locked_clears.append(payload.message_id)
+        for m in all_messages:
+            channel_id = m['channel_id']
+            channel = self.bot.get_channel(channel_id)
+            if not channel:
+                channel = await self.bot.fetch_channel(channel_id)
+            if not channel:
+                logging.warning("Couldn't find channel " + channel_id)
+                continue
+            if channel_id != payload.channel_id:
+                message = utils.get(self.bot.cached_messages, id=m['message_id'])
+                if not message:
+                    message = discord.PartialMessage(
+                        channel=channel, id=m['message_id']
+                    )
+                    await message.fetch()
+                try:
+                    await message.clear_reactions()
+                except:
+                    pass
+        await asyncio.sleep(3)
+        self.locked_clears.remove(payload.message_id)
 
     @commands.Cog.listener()
     async def on_raw_reaction_clear_emoji(self, payload: discord.RawReactionClearEmojiEvent):
-        pass
+        if payload.message_id in self.locked_emoji_clears:
+            return
+        if payload.guild_id is None:
+            return
+        channel_data = await self.get_channel_data(payload.channel_id)
+        if channel_data is None:
+            return
+        async with db.MaybeAcquire(pool=self.bot.pool) as con:
+            original = True
+            message_data = await con.fetchrow("SELECT * FROM original_messages WHERE message_id = $1;", payload.message_id)
+            if not message_data:
+                original = False
+                message_data = await con.fetchrow("SELECT * FROM original_messages WHERE message_id = (SELECT original_id FROM synced_messages WHERE message_id = $1);", payload.message_id)
+            if not message_data:
+                # Doesn't exist anywhere
+                return
+            all_messages = await con.fetch("SELECT * FROM synced_messages WHERE original_id = $1;", message_data["message_id"])
+            if not original:
+                all_messages.append(message_data)
+        if payload.message_id in self.locked_emoji_clears:
+            return
+        self.locked_emoji_clears.append(payload.message_id)
+        for m in all_messages:
+            channel_id = m['channel_id']
+            channel = self.bot.get_channel(channel_id)
+            if not channel:
+                channel = await self.bot.fetch_channel(channel_id)
+            if not channel:
+                logging.warning("Couldn't find channel " + channel_id)
+                continue
+            if channel_id != payload.channel_id:
+                message = utils.get(self.bot.cached_messages, id=m['message_id'])
+                if not message:
+                    message = discord.PartialMessage(
+                        channel=channel, id=m['message_id']
+                    )
+                    await message.fetch()
+                try:
+                    await message.clear_reaction(payload.emoji)
+                except:
+                    pass
+        await asyncio.sleep(3)
+        self.locked_emoji_clears.remove(payload.message_id)
 
     @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
