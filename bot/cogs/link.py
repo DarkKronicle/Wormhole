@@ -164,6 +164,8 @@ class Link(commands.Cog):
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         if payload.guild_id is None:
             return
+        if payload.user_id == self.bot.user.id:
+            return
         channel_data = await self.get_channel_data(payload.channel_id)
         if channel_data is None:
             return
