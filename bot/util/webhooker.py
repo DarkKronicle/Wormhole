@@ -127,7 +127,7 @@ class Webhooker:
     async def create_thread(self, name, **kwargs):
         return await self.webhook.send(thread_name=name, **kwargs)
 
-    async def send_message(self, message: BasicMessage, *, no_attachments=False, thread=None, **kwargs) -> typing.Optional[discord.WebhookMessage]:
+    async def send_message(self, message: BasicMessage, *, no_attachments=False, thread=None, append=None, **kwargs) -> typing.Optional[discord.WebhookMessage]:
         files = []
         if not no_attachments:
             for attachment in message.attachments:
@@ -138,10 +138,13 @@ class Webhooker:
         embeds = message.embeds
         if embed:
             embeds = embeds + [embed]
+        content = message.content
+        if append:
+            content = content + append
         return await self.mimic_user(
             member=message.author,
-            content=message.content,
             embeds=embeds,
+            content=content,
             allowed_mentions=discord.AllowedMentions(everyone=False, users=True, roles=False),
             thread=thread,
             files=files,
@@ -161,25 +164,6 @@ class Webhooker:
             avatar_url=member.display_avatar.url,
             **new_kwargs,
         )
-
-    async def get_reply_chain(self, message: discord.Message, *, loose=False, lookback=80, depth=-1, build_depth=-1):
-        if message.reference is None:
-            return [message]
-        if isinstance(message, discord.PartialMessage):
-            message = await message.fetch()
-        messages = [message]
-        async for m in message.channel.history(limit=lookback, before=message, oldest_first=False):
-            messages.append(m)
-        messages.reverse()
-        replied = build_dict(messages, loose=loose, depth=build_depth)
-        if message.reference.message_id not in replied:
-            return [message]
-
-        first = get_first_referenced(message.id, replied)
-        all_replied: list[discord.Message] = [next(mes for mes in messages if mes.id == first)]
-        extend_all(first, replied, all_replied, depth=depth, orig_depth=depth)
-        all_replied.sort(key=lambda x: x.created_at)
-        return all_replied
 
     @ensure_webhook
     async def send_channel_messages(self, messages: list[discord.Message], *, creator: discord.Member = None, thread: discord.Thread = None, interaction: discord.Interaction = None):

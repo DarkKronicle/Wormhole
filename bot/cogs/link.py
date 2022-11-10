@@ -249,6 +249,7 @@ class Link(commands.Cog):
                 message.author.id
             )
         reply = None
+        mention_reply = False
         messages = []
         original = None
         if message.reference is not None:
@@ -267,6 +268,19 @@ class Link(commands.Cog):
                 original = await con.fetchrow(
                     "SELECT * FROM original_messages WHERE message_id = $1;", original_id
                 )
+            if reply.webhook_id is not None:
+                mentions = message.mentions.copy()
+                for m in set(message.raw_mentions):
+                    remove = None
+                    for mention in mentions:
+                        if mention.id == m:
+                            remove = mention
+                            break
+                    if remove is not None:
+                        mentions.remove(remove)
+                if len(mentions) > 0:
+                    mention_reply = True
+
         for channel_row in link_data:
             guild_id = channel_row['guild_id']
             if await self.is_banned(guild_id, message.author.id):
@@ -301,15 +315,19 @@ class Link(commands.Cog):
                 if jump_url is None and original is not None:
                     jump_url = f'https://discord.com/channels/{original["guild_id"]}/{original["channel_id"]}/{original["message_id"]}'
                 embed.set_description(f"**[Reply To: ]({jump_url}) **{content}")
-                self.bot.loop.create_task(self.send_message_and_db(webhooker, message, embed))
+                if mention_reply:
+                    mention = ' <@{0}>'.format(original['author_id'])
+                    self.bot.loop.create_task(self.send_message_and_db(webhooker, message, embed, append=mention))
+                else:
+                    self.bot.loop.create_task(self.send_message_and_db(webhooker, message, embed))
             else:
                 self.bot.loop.create_task(self.send_message_and_db(webhooker, message, None))
 
-    async def send_message_and_db(self, webhooker: Webhooker, message: discord.Message, reply_embed):
+    async def send_message_and_db(self, webhooker: Webhooker, message: discord.Message, reply_embed, append=None):
         try:
-            response: discord.WebhookMessage = await webhooker.send_message(BasicMessage.from_message(message), wait=True, embed=reply_embed)
+            response: discord.WebhookMessage = await webhooker.send_message(BasicMessage.from_message(message), wait=True, embed=reply_embed, append=append)
         except:
-            response: discord.WebhookMessage = await webhooker.send_message(BasicMessage.from_message(message), wait=True, embed=reply_embed, no_attachments=True)
+            response: discord.WebhookMessage = await webhooker.send_message(BasicMessage.from_message(message), wait=True, embed=reply_embed, no_attachments=True, append=append)
         async with db.MaybeAcquire(pool=self.bot.pool) as con:
             await con.execute(
                 "INSERT INTO synced_messages(original_id, guild_id, channel_id, message_id) VALUES ($1, $2, $3, $4)",
