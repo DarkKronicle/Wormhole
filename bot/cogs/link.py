@@ -269,19 +269,7 @@ class Link(commands.Cog):
                     "SELECT * FROM original_messages WHERE message_id = $1;", original_id
                 )
             if reply.webhook_id is not None:
-                mentions = message.mentions.copy()
-                print(mentions)
-                print(message.raw_mentions)
-                for m in set(message.raw_mentions):
-                    remove = None
-                    for mention in mentions:
-                        if mention.id == m:
-                            remove = mention
-                            break
-                    if remove is not None:
-                        mentions.remove(remove)
-                if len(mentions) > 0:
-                    mention_reply = True
+                mention_reply = message.content.startswith('@')
 
         for channel_row in link_data:
             guild_id = channel_row['guild_id']

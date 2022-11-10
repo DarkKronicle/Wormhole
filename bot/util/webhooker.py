@@ -139,6 +139,8 @@ class Webhooker:
         if embed:
             embeds = embeds + [embed]
         content = message.content
+        if content.startswith('@'):
+            content = content[1:]
         if append:
             content = content + append
         return await self.mimic_user(
